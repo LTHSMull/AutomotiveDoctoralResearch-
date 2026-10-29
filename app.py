@@ -19,7 +19,7 @@ Force the student to ask you calming, probing questions to figure out the sympto
 
 # Initialize the model with the instructions
 model = genai.GenerativeModel(
-    model_name="gemini-3.8-live",
+    model_name="gemini-1.5-flash",
     system_instruction=system_instruction
 )
 
