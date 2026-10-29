@@ -16,7 +16,6 @@ else:
     st.stop()
 
 # 3. Select and persist a Hidden Scenario & Vehicle Profile for this user session
-# Reset state if scenario is improperly formatted as a string from a previous run
 if "scenario" in st.session_state and isinstance(st.session_state.scenario, str):
     del st.session_state["scenario"]
 
@@ -123,4 +122,6 @@ if user_input := st.chat_input("Type your response to the customer or action in 
             try:
                 response = st.session_state.chat.send_message(user_input)
                 message_placeholder.markdown(response.text)
-                st.rer
+                st.rerun()
+            except Exception as e:
+                message_placeholder.error(f"Error: {e}")
