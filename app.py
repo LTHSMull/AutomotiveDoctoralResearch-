@@ -3,13 +3,18 @@ import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 # 1. Page Setup
+st.set_page_config(page_title="Auto Diagnostics Lab", page_icon="🔧")
 st.title("🔧 Auto Diagnostics Lab: Phase 1")
 st.write("You are at the service desk. Talk to the customer to figure out what is wrong.")
 
-# 2. Securely get the API key
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+# 2. Configure API Key
+if "GEMINI_API_KEY" in st.secrets:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+else:
+    st.error("Missing GEMINI_API_KEY in Streamlit Secrets.")
+    st.stop()
 
-# 3. Configure the AI Model and the "Hidden Prompt"
+# 3. System Instructions & Safety Settings
 system_instruction = """
 You are an angry customer at an auto repair shop. 
 Your car is shaking when braking, but do not say that directly. 
@@ -17,48 +22,39 @@ Only say you are frustrated and late for work.
 Force the student to ask you calming, probing questions to figure out the symptoms.
 """
 
-# Lower the safety settings so it is allowed to roleplay an angry person
 safety_settings = {
     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
 }
 
-# Initialize model in session state so it doesn't re-instantiate on every page rerun
-if "model" not in st.session_state:
-    st.session_state.model = genai.GenerativeModel(
+# 4. Initialize Model and Chat Session in Session State Once
+if "chat" not in st.session_state:
+    model = genai.GenerativeModel(
         model_name="gemini-3.8-flash",
         system_instruction=system_instruction,
         safety_settings=safety_settings
     )
+    st.session_state.chat = model.start_chat(history=[])
 
-if "chat" not in st.session_state:
-    st.session_state.chat = st.session_state.model.start_chat(history=[])
-
-# Display all previous messages
+# 5. Display Chat History
 for message in st.session_state.chat.history:
     role = "assistant" if message.role == "model" else "user"
     with st.chat_message(role):
-        try:
-            st.markdown(message.parts[0].text)
-        except Exception:
-            st.markdown("*[Message blocked or unreadable]*")
+        st.markdown(message.parts[0].text)
 
-# 5. The Chat Input Box
-user_input = st.chat_input("What do you say to the customer?")
-
-if user_input:
-    # Show what the student typed
+# 6. User Input & Response Generation
+if user_input := st.chat_input("What do you say to the customer?"):
+    # Display user's message immediately
     with st.chat_message("user"):
         st.markdown(user_input)
-    
-    # Send it to Gemini and show the response safely
+
+    # Generate response from Gemini
     with st.chat_message("assistant"):
-        try:
-            # We use a spinner so you know it's actually "thinking" and not just frozen
-            with st.spinner("Customer is responding..."):
+        message_placeholder = st.empty()
+        with st.spinner("Customer is responding..."):
+            try:
                 response = st.session_state.chat.send_message(user_input)
-                st.markdown(response.text)
-        except ValueError as e:
-            st.error("Google's safety filters blocked the AI's response. It got too angry!")
-        except Exception as e:
-            st.error(f"System Error: {e}")
+                message_placeholder.markdown(response.text)
+                st.rerun()  # Forces Streamlit to update the UI cleanly
+            except Exception as e:
+                message_placeholder.error(f"Error: {e}")
