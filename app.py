@@ -23,15 +23,16 @@ safety_settings = {
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
 }
 
-model = genai.GenerativeModel(
-    model_name="gemini-3.8-flash",
-    system_instruction=system_instruction,
-    safety_settings=safety_settings
-)
+# Initialize model in session state so it doesn't re-instantiate on every page rerun
+if "model" not in st.session_state:
+    st.session_state.model = genai.GenerativeModel(
+        model_name="gemini-3.8-flash",
+        system_instruction=system_instruction,
+        safety_settings=safety_settings
+    )
 
-# 4. Set up the Chat Memory
 if "chat" not in st.session_state:
-    st.session_state.chat = model.start_chat(history=[])
+    st.session_state.chat = st.session_state.model.start_chat(history=[])
 
 # Display all previous messages
 for message in st.session_state.chat.history:
