@@ -46,15 +46,15 @@ ACTIVE SCENARIO FOR THIS SESSION: {active_scenario_name}
 (DO NOT reveal this scenario or its specific underlying fault to the student under any circumstances until the very end of the simulation).
 
 PHASE 1: THE SERVICE DESK (Play the role of Alex)
-- Tone: Highly agitated, stressed, and feeling financially strained. You just spent $200 on a new battery yesterday, and the car still left you stranded this morning.
+- Tone: Highly agitated, stressed, and feeling financially strained. You spent roughly two hundred dollars on a new battery yesterday, and the car still left you stranded this morning.
 - Vehicle Knowledge: If the student asks what kind of car you drive, state that it is a {active_vehicle}.
 - Rules of Engagement:
   - Do not give away all your symptoms at once. Force the student to ask probing questions.
   - If the student is blunt, dismissive, or immediately talks down to you using heavy technical jargon, become more uncooperative and demand to speak to a manager.
   - If the student uses de-escalation techniques (empathy, active listening, validation), calm down slightly and provide clearer answers.
 - Your Symptoms (Based on the active scenario):
-  - If Scenario A (Starter): Tell the student you hear a distinct "clicking" sound when you turn the key. The radio and interior lights work perfectly fine.
-  - If Scenario B (Alternator): Tell the student you were driving last night, and the dashboard lights started dimming, the radio cut out, and then the car just died at a stoplight.
+  - If Scenario A (Starter): Tell the student you hear a distinct clicking noise when turning the key. The radio and dashboard lights function normally.
+  - If Scenario B (Alternator): Tell the student you were driving last night, the dashboard lights started dimming, the radio cut out, and the vehicle died completely at a stoplight.
 - Transition: Once the student successfully de-escalates you and states they are taking the keys to pull the car into the bay, acknowledge taking the keys and silently transition to Phase 2.
 
 PHASE 2: THE SERVICE BAY (Play the role of the Vehicle & Physical Environment)
@@ -69,17 +69,20 @@ PHASE 2: THE SERVICE BAY (Play the role of the Vehicle & Physical Environment)
 
 - Diagnostic Outcomes (Based on the active scenario):
   - If Scenario A (Starter Motor Failure):
-    - Battery voltage test (Multimeter at battery terminals, engine off): Reads 12.6 Volts.
-    - Attempting engine start: Single sharp "click" from the starter solenoid in the engine bay; engine does not crank.
-    - Jump-starting attempt: Fails to crank the engine (starter solenoid unresponsive).
+    - Battery voltage test (Multimeter at battery terminals, engine off): Displays 12.6 Volts.
+    - Attempting engine start: Single sharp click from starter solenoid in engine bay; engine does not turn over.
+    - Jump-starting attempt: Engine does not turn over (solenoid unresponsive).
   - If Scenario B (Alternator Failure):
-    - Battery voltage test (Multimeter at battery terminals, engine off): Reads 11.2 Volts (discharged).
-    - Jump-starting attempt: Engine starts successfully with external pack.
-    - Battery voltage test (Multimeter at battery terminals, engine running under jump power): Reads 11.5 Volts and slowly dropping (Alternator is not charging).
-    - Removing jump cables while running: Vehicle immediately stalls.
+    - Battery voltage test (Multimeter at battery terminals, engine off): Displays 11.2 Volts.
+    - Jump-starting attempt: Engine starts successfully using external booster pack.
+    - Battery voltage test (Multimeter at battery terminals, engine running under jump power): Displays 11.5 Volts and dropping.
+    - Removing jump cables while running: Vehicle engine immediately stalls.
 
-CONCLUSION:
-The simulation ends when the student states their final official diagnosis and estimated repair cost. Evaluate their conclusion based on the data they gathered during the session.
+CONCLUSION & EVALUATION:
+When the student provides their final diagnosis and estimated repair cost:
+1. Provide a detailed evaluation of their diagnostic path in your own words. 
+2. State whether their final diagnosis matches the active scenario.
+3. Assess whether they gathered sufficient evidence before coming to their conclusion.
 """
 
 safety_settings = {
@@ -121,7 +124,13 @@ if user_input := st.chat_input("Type your response to the customer or action in 
         with st.spinner("Processing..."):
             try:
                 response = st.session_state.chat.send_message(user_input)
-                message_placeholder.markdown(response.text)
+                
+                # Check if text was returned or if safety/recitation blocked the content
+                if response.candidates and response.candidates[0].content.parts:
+                    message_placeholder.markdown(response.text)
+                else:
+                    message_placeholder.markdown("The simulation has concluded. Your diagnosis and evaluation have been recorded.")
+                
                 st.rerun()
             except Exception as e:
                 message_placeholder.error(f"Error: {e}")
