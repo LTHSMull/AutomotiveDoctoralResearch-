@@ -16,6 +16,10 @@ else:
     st.stop()
 
 # 3. Select and persist a Hidden Scenario & Vehicle Profile for this user session
+# Reset state if scenario is improperly formatted as a string from a previous run
+if "scenario" in st.session_state and isinstance(st.session_state.scenario, str):
+    del st.session_state["scenario"]
+
 if "scenario" not in st.session_state:
     st.session_state.scenario = random.choice([
         {
@@ -93,7 +97,7 @@ if "chat" not in st.session_state:
     )
     st.session_state.chat = model.start_chat(history=[])
 
-# Add a Reset Button in the sidebar so the user can start a fresh scenario
+# Add a Reset Button in the sidebar
 with st.sidebar:
     st.header("Simulation Controls")
     if st.button("Restart Simulation"):
@@ -110,17 +114,13 @@ for message in st.session_state.chat.history:
 
 # 7. User Input & Response Generation
 if user_input := st.chat_input("Type your response to the customer or action in the bay..."):
-    # Display user's message immediately
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    # Generate response from Gemini
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         with st.spinner("Processing..."):
             try:
                 response = st.session_state.chat.send_message(user_input)
                 message_placeholder.markdown(response.text)
-                st.rerun()
-            except Exception as e:
-                message_placeholder.error(f"Error: {e}")
+                st.rer
