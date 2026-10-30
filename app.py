@@ -59,7 +59,7 @@ FAULT_TEMPLATES = [
     }
 ]
 
-# 4. Persona Traits Pool for Procedural Customer Generation
+# 4. Persona Traits Pool
 PERSONALITY_TRAITS = [
     "hyper-anxious about repair costs due to a tight monthly budget",
     "skeptical of mechanic recommendations and feels previously burned by auto shops",
@@ -123,7 +123,8 @@ def run_secondary_evaluation(chat_history, active_fault, customer_name, personal
     }}
     """
     
-    judge_model = genai.GenerativeModel("gemini-1.5-flash")
+    # Using explicit models/ prefix to prevent model name format errors
+    judge_model = genai.GenerativeModel("models/gemini-1.5-flash")
     try:
         response = judge_model.generate_content(
             judge_prompt,
@@ -131,7 +132,6 @@ def run_secondary_evaluation(chat_history, active_fault, customer_name, personal
         )
         return json.loads(response.text)
     except Exception as e:
-        # Fallback scoring in case of JSON parse error
         return {
             "communication_score": 75,
             "logic_score": 75,
@@ -207,10 +207,10 @@ safety_settings = {
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
 }
 
-# 8. Initialize Model and Chat Session
+# 8. Initialize Model and Chat Session using explicit models/ prefix
 if "chat" not in st.session_state:
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="models/gemini-1.5-flash",
         system_instruction=system_instruction,
         generation_config=generation_config,
         safety_settings=safety_settings
@@ -230,6 +230,7 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("Active State Telemetry")
     st.write(f"**Customer Persona:** {st.session_state.customer_name}")
+    st.write(f"**Personality Trait:** {st.session_state.personality}")
     st.write(f"**Target Vehicle:** {active_fault['vehicle']}")
     
     with st.expander("Reveal Ground Truth (Instructor Only)"):
@@ -237,7 +238,6 @@ with st.sidebar:
         st.write(f"**Root Cause:** {active_fault['base_cause']}")
 
     st.markdown("---")
-    # CSV Data Export Option for Researcher
     if os.path.exists(CSV_FILE_PATH):
         with open(CSV_FILE_PATH, "r") as f:
             st.download_button(
@@ -259,7 +259,7 @@ for message in st.session_state.chat.history:
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
-# 11. Process Inputs & Trigger Scoring Pipeline
+# 11. Process Inputs
 if user_input := st.chat_input("Type your response to the customer or diagnostic action in the bay..."):
     with st.chat_message("user"):
         st.markdown(user_input)
@@ -301,12 +301,10 @@ with col_action2:
             st.session_state.evaluation = eval_results
             st.session_state.evaluation_done = True
             
-            # Construct transcript string for research records
             transcript_text = "\n".join(
                 [f"{m.role}: {m.parts[0].text}" for m in st.session_state.chat.history]
             )
             
-            # Log data to CSV
             log_session_to_csv({
                 "timestamp": datetime.now().isoformat(),
                 "customer_name": st.session_state.customer_name,
@@ -320,12 +318,10 @@ with col_action2:
                 "transcript": transcript_text
             })
 
-# Display Evaluation Dashboard if Generated
 if st.session_state.get("evaluation_done", False):
     eval_data = st.session_state.evaluation
     st.subheader("🏁 Performance Evaluation Report")
     
-    # Display Top Metrics Cards
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Overall Grade", f"{eval_data['overall_score']}%")
     m2.metric("Communication (Phase 1)", f"{eval_data['communication_score']}%")
