@@ -124,7 +124,7 @@ def run_secondary_evaluation(chat_history, active_fault, customer_name, personal
     """
     
     # Standard string model identifier without prefix
-    judge_model = genai.GenerativeModel("gemini-1.5-flash")
+    judge_model = genai.GenerativeModel("gemini-3.5-flash lite")
     try:
         response = judge_model.generate_content(
             judge_prompt,
@@ -210,7 +210,7 @@ safety_settings = {
 # 8. Initialize Model and Chat Session (Standard string identifier)
 if "chat" not in st.session_state:
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-3.5-flash lite",
         system_instruction=system_instruction,
         generation_config=generation_config,
         safety_settings=safety_settings
