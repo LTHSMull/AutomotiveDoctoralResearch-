@@ -230,7 +230,6 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("Active State Telemetry")
     st.write(f"**Customer Persona:** {st.session_state.customer_name}")
-    st.write(f"**Personality Trait:** {st.session_state.personality}")
     st.write(f"**Target Vehicle:** {active_fault['vehicle']}")
     
     with st.expander("Reveal Ground Truth (Instructor Only)"):
