@@ -152,8 +152,7 @@ if "chat" not in st.session_state:
 with st.sidebar:
     st.header("⚙️ Instructor / Research Panel")
     st.subheader("Active State Telemetry")
-    st.write(f"**Customer Persona:** {st.session_state.customer_name}")
-    st.write(f"**Personality Trait:** {st.session_state.personality}")
+    st.write(f"**Customer Persona:** {st.session_state.customer_name}"
     st.write(f"**Target Vehicle:** {active_fault['vehicle']}")
     
     # Hide root cause behind an expander for testing
