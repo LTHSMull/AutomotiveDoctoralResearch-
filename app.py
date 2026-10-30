@@ -15,14 +15,12 @@ else:
     st.stop()
 
 # 3. Dynamic Archetype Pool (Core Mechanical Grounding)
-# Updated FAULT_TEMPLATES with explicit phase1_complaint keys
 FAULT_TEMPLATES = [
     {
         "fault_id": "starter_solenoid",
         "name": "Starter Motor Solenoid Failure",
         "vehicle": "2018 Honda Civic LX (2.0L 4-Cylinder)",
         "base_cause": "Faulty starter solenoid coil preventing starter engagement.",
-        # Raw factual constraints instead of a rigid sentence
         "core_symptoms": [
             "Bought a brand new battery yesterday",
             "Vehicle fails to turn over/crank this morning",
@@ -54,8 +52,27 @@ FAULT_TEMPLATES = [
           - Removing jump pack: Engine immediately stalls.
           - Belt inspection: Serpentine belt is intact and properly tensioned.
         """
+    },
+    {
+        "fault_id": "parasitic_draw",
+        "name": "Parasitic Electrical Draw",
+        "vehicle": "2019 Jeep Wrangler Unlimited (3.6L V6)",
+        "base_cause": "Unswitched aftermarket accessory or sticking relay causing battery drain overnight.",
+        "core_symptoms": [
+            "Battery dies every single night",
+            "Vehicle is completely dead every morning despite installing a new battery",
+            "Installed a new battery twice this month",
+            "Vehicle runs fine during the day once jump-started"
+        ],
+        "phase2_data": """
+          - Multimeter at battery (Engine Off, after sitting): 10.4V (Depleted).
+          - Alternator Charging Test (Engine running): 14.2V (Charging system working).
+          - Parasitic Draw Test (DMM in series with negative terminal, car asleep): 650 mA draw (Normal < 50 mA).
+          - Fuse Pull Test: Draw drops to 15 mA when Fuse F24 (Accessory/Amplifier) is removed.
+        """
     }
 ]
+
 # 4. Persona Traits Pool for Procedural Customer Generation
 PERSONALITY_TRAITS = [
     "hyper-anxious about repair costs due to a tight monthly budget",
@@ -84,17 +101,17 @@ ACTIVE SCENARIO SPECIFICATION:
 - Vehicle: {active_fault['vehicle']}
 - Root Technical Cause: {active_fault['base_cause']}
 - Customer Behavioral Profile: {st.session_state.personality}
+- Raw Vehicle Symptoms Known to Customer: {active_fault['core_symptoms']}
 (DO NOT explicitly reveal the exact root technical cause or scenario name to the student until the final evaluation).
 
 PHASE 1: THE SERVICE DESK (Customer Roleplay)
 - Name: {st.session_state.customer_name}
-- Behavioral Profile: {st.session_state.personality}
-- Raw Vehicle Symptoms Known to Customer: {active_fault['core_symptoms']}
+- Behavioral Profile: Embody the trait: "{st.session_state.personality}".
 
 STRICT CONVERSATIONAL PACING RULES:
-1. DYNAMIC REFORMULATION: Do NOT quote the raw vehicle symptoms word-for-word. Synthesize them dynamically using the voice, vocabulary level, and emotional stress dictated by your behavioral profile ({st.session_state.personality}). Rephrase your story entirely on every playthrough.
-
-2. INFORMATION TIERS (Reveal details ONLY when earned):
+1. DO NOT RUSH TO THE BAY: Stay at the service desk for AT LEAST 3 to 5 back-and-forth conversational exchanges. Do NOT offer your keys or transition to Phase 2 prematurely.
+2. DYNAMIC REFORMULATION: Do NOT quote raw vehicle symptoms word-for-word. Synthesize them dynamically using the voice, vocabulary level, and emotional stress dictated by your behavioral profile ({st.session_state.personality}). Rephrase your story entirely on every playthrough.
+3. INFORMATION TIERS (Reveal details ONLY when earned):
    
    - TIER 1 (Initial Unprompted Complaint): 
      State ONLY your immediate emotional distress and high-level situation (e.g., "I can't believe this, I just spent money fixing this car and now it's completely useless on my driveway!"). Do NOT describe symptoms or sounds yet.
@@ -105,7 +122,7 @@ STRICT CONVERSATIONAL PACING RULES:
    - TIER 3 (Unlocked ONLY by Specific, Inquisitive Follow-Up Questions):
      Reveal deeper details (like specific click sounds, dash light behaviors, or driving conditions) ONLY when the student explicitly asks targeted questions about them.
 
-3. TRANSITION CRITERIA TO PHASE 2:
+4. TRANSITION CRITERIA TO PHASE 2:
    You will ONLY hand over the keys and say "Please pull it into the bay" if BOTH conditions are met:
    Condition A: The student has explicitly validated your frustration or explained what the initial inspection step will be.
    Condition B: The student explicitly asks for the keys or states they are moving the vehicle to the bay.
@@ -114,7 +131,7 @@ PHASE 2: THE SERVICE BAY (Physical Environment Roleplay)
 - Persona: Passive, objective physical environment and tool interface.
 - Guidelines:
   1. DO NOT suggest tools, list options, or prompt the student on what to test next.
-  2. Transition response must strictly be: "[SERVICE BAY] {active_fault['vehicle']} is pulled into Bay 1. Engine is off. Keys on the dash. Awaiting technician command on desired next steps."
+  2. Transition response must strictly begin with: "[SERVICE BAY] {active_fault['vehicle']} is pulled into Bay 1. Engine is off. Awaiting technician command."
   3. Require specific tool selections, test locations, and procedures (e.g., "I connect a multimeter set to DC Volts across the battery terminals").
   4. If a command is ambiguous, ask the technician to clarify the tool and testing procedure.
   5. Use this empirical ground-truth dataset for test results:
@@ -127,9 +144,9 @@ When the student presents their final diagnosis and repair recommendation:
 3. Confirm whether the root cause was correctly identified and supported by empirical evidence.
 """
 
-# 7. Model Configuration with Temperature for Variation
+# 7. Model Configuration with Temperature for Dialogue Variation
 generation_config = genai.types.GenerationConfig(
-    temperature=0.85,  # Slightly higher temperature introduces dialogue and response variation
+    temperature=0.85,
     top_p=0.95,
 )
 
@@ -141,7 +158,7 @@ safety_settings = {
 # 8. Initialize Model and Chat Session
 if "chat" not in st.session_state:
     model = genai.GenerativeModel(
-        model_name="gemini-3.5-flash-lite",
+        model_name="gemini-1.5-flash",
         system_instruction=system_instruction,
         generation_config=generation_config,
         safety_settings=safety_settings
@@ -151,11 +168,20 @@ if "chat" not in st.session_state:
 # 9. Sidebar Debug & Research Controls
 with st.sidebar:
     st.header("⚙️ Instructor / Research Panel")
+    
+    # Location indicator badge
+    st.subheader("Current Location")
+    if st.session_state.get("phase", "desk") == "desk":
+        st.info("🛋️ **Location:** Service Desk (Phase 1)")
+    else:
+        st.success("🔧 **Location:** Service Bay (Phase 2)")
+    
+    st.markdown("---")
     st.subheader("Active State Telemetry")
     st.write(f"**Customer Persona:** {st.session_state.customer_name}")
+    st.write(f"**Personality Trait:** {st.session_state.personality}")
     st.write(f"**Target Vehicle:** {active_fault['vehicle']}")
     
-    # Hide root cause behind an expander for testing
     with st.expander("Reveal Ground Truth (Instructor Only)"):
         st.write(f"**Fault Name:** {active_fault['name']}")
         st.write(f"**Root Cause:** {active_fault['base_cause']}")
@@ -167,13 +193,13 @@ with st.sidebar:
                 del st.session_state[key]
         st.rerun()
 
-# 10. Render Conversation Interface
+# 10. Display Chat History
 for message in st.session_state.chat.history:
     role = "assistant" if message.role == "model" else "user"
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
-# 11. Process Inputs
+# 11. User Input & Response Generation
 if user_input := st.chat_input("Type your response to the customer or diagnostic action in the bay..."):
     with st.chat_message("user"):
         st.markdown(user_input)
@@ -184,7 +210,12 @@ if user_input := st.chat_input("Type your response to the customer or diagnostic
             try:
                 response = st.session_state.chat.send_message(user_input)
                 if response.candidates and response.candidates[0].content.parts:
-                    message_placeholder.markdown(response.text)
+                    response_text = response.text
+                    message_placeholder.markdown(response_text)
+                    
+                    # Update state phase if model signals transition
+                    if "[SERVICE BAY]" in response_text:
+                        st.session_state.phase = "bay"
                 else:
                     message_placeholder.markdown("Simulation concluded. Diagnostics and communication logs recorded.")
                 st.rerun()
