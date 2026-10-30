@@ -87,11 +87,14 @@ def log_session_to_csv(data_dict):
 
 # Secondary API Call: Judge Evaluation Pipeline
 def run_secondary_evaluation(chat_history, active_fault, customer_name, personality):
-    """Executes a secondary LLM call to generate a structured evaluation report."""
+    """Executes a secondary LLM call to generate a structured evaluation report using gemini-3.5-flash-lite."""
     formatted_transcript = ""
     for msg in chat_history:
         speaker = customer_name if msg.role == "model" else "Technician"
-        formatted_transcript += f"{speaker}: {msg.parts[0].text}\n\n"
+        # Safe extraction of text from parts
+        msg_text = "".join([p.text for p in msg.parts if hasattr(p, "text") and p.text]) if hasattr(msg, "parts") and msg.parts else ""
+        if msg_text:
+            formatted_transcript += f"{speaker}: {msg_text}\n\n"
 
     judge_prompt = f"""
     You are an expert automotive instructor and doctoral researcher evaluating a student technician's performance in a dual-phase diagnostic simulator.
@@ -123,7 +126,6 @@ def run_secondary_evaluation(chat_history, active_fault, customer_name, personal
     }}
     """
     
-    # Standard string model identifier without prefix
     judge_model = genai.GenerativeModel("gemini-3.5-flash-lite")
     try:
         response = judge_model.generate_content(
@@ -207,7 +209,7 @@ safety_settings = {
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
 }
 
-# 8. Initialize Model and Chat Session (Standard string identifier)
+# 8. Initialize Model and Chat Session (gemini-3.5-flash-lite)
 if "chat" not in st.session_state:
     model = genai.GenerativeModel(
         model_name="gemini-3.5-flash-lite",
@@ -252,13 +254,16 @@ with st.sidebar:
             del st.session_state[key]
         st.rerun()
 
-# 10. Render Conversation Interface
+# 10. Render Conversation Interface (Safely checking message.parts)
 for message in st.session_state.chat.history:
     role = "assistant" if message.role == "model" else "user"
     with st.chat_message(role):
-        st.markdown(message.parts[0].text)
+        if hasattr(message, "parts") and message.parts:
+            text_content = "".join([part.text for part in message.parts if hasattr(part, "text") and part.text])
+            if text_content:
+                st.markdown(text_content)
 
-# 11. Process Inputs
+# 11. Process Inputs (Safely handling response text)
 if user_input := st.chat_input("Type your response to the customer or diagnostic action in the bay..."):
     with st.chat_message("user"):
         st.markdown(user_input)
@@ -268,81 +273,19 @@ if user_input := st.chat_input("Type your response to the customer or diagnostic
         with st.spinner("Simulating environment..."):
             try:
                 response = st.session_state.chat.send_message(user_input)
-                if response.candidates and response.candidates[0].content.parts:
+                response_text = ""
+                if hasattr(response, "text") and response.text:
                     response_text = response.text
+                elif hasattr(response, "parts") and response.parts:
+                    response_text = "".join([p.text for p in response.parts if hasattr(p, "text") and p.text])
+
+                if response_text:
                     message_placeholder.markdown(response_text)
-                    
                     if "[SERVICE BAY]" in response_text:
                         st.session_state.phase = "bay"
                 else:
                     message_placeholder.markdown("Simulation concluded.")
                 st.rerun()
             except Exception as e:
-                # If a cached session error occurs, purge session state to force a fresh object creation
                 if "unexpected model name format" in str(e):
-                    del st.session_state["chat"]
-                    st.rerun()
-                message_placeholder.error(f"Error: {e}")
-
-# 12. Submit Final Diagnosis Button & Evaluation Rendering
-st.markdown("---")
-col_action1, col_action2 = st.columns([2, 1])
-
-with col_action1:
-    st.caption("When you have completed testing and provided your final diagnosis, trigger the formal evaluation.")
-
-with col_action2:
-    if st.button("📊 Submit Final Diagnosis & Grade Session", type="primary"):
-        with st.spinner("Analyzing transcript and computing rubric metrics..."):
-            eval_results = run_secondary_evaluation(
-                st.session_state.chat.history,
-                active_fault,
-                st.session_state.customer_name,
-                st.session_state.personality
-            )
-            
-            st.session_state.evaluation = eval_results
-            st.session_state.evaluation_done = True
-            
-            transcript_text = "\n".join(
-                [f"{m.role}: {m.parts[0].text}" for m in st.session_state.chat.history]
-            )
-            
-            log_session_to_csv({
-                "timestamp": datetime.now().isoformat(),
-                "customer_name": st.session_state.customer_name,
-                "personality_trait": st.session_state.personality,
-                "vehicle": active_fault["vehicle"],
-                "fault_name": active_fault["name"],
-                "communication_score": eval_results["communication_score"],
-                "logic_score": eval_results["logic_score"],
-                "accuracy_score": eval_results["accuracy_score"],
-                "overall_score": eval_results["overall_score"],
-                "transcript": transcript_text
-            })
-
-if st.session_state.get("evaluation_done", False):
-    eval_data = st.session_state.evaluation
-    st.subheader("🏁 Performance Evaluation Report")
-    
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Overall Grade", f"{eval_data['overall_score']}%")
-    m2.metric("Communication (Phase 1)", f"{eval_data['communication_score']}%")
-    m3.metric("Diagnostic Logic (Phase 2)", f"{eval_data['logic_score']}%")
-    m4.metric("Technical Accuracy", f"{eval_data['accuracy_score']}%")
-    
-    st.markdown("### Detailed Instructor Feedback")
-    st.info(f"**Overall Summary:** {eval_data['summary_evaluation']}")
-    
-    f_col1, f_col2, f_col3 = st.columns(3)
-    with f_col1:
-        st.write("🗣️ **Communication & De-escalation**")
-        st.write(eval_data['communication_feedback'])
-    with f_col2:
-        st.write("🔧 **Diagnostic Strategy**")
-        st.write(eval_data['logic_feedback'])
-    with f_col3:
-        st.write("🎯 **Technical Accuracy**")
-        st.write(eval_data['accuracy_feedback'])
-        
-    st.success("✅ Session data and full conversation transcript successfully logged to research dataset (`simulation_results.csv`).")
+                    if "chat" in st
