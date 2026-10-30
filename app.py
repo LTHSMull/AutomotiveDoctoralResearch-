@@ -123,8 +123,8 @@ def run_secondary_evaluation(chat_history, active_fault, customer_name, personal
     }}
     """
     
-    # Using explicit models/ prefix to prevent model name format errors
-    judge_model = genai.GenerativeModel("models/gemini-1.5-flash")
+    # Standard string model identifier without prefix
+    judge_model = genai.GenerativeModel("gemini-1.5-flash")
     try:
         response = judge_model.generate_content(
             judge_prompt,
@@ -207,10 +207,10 @@ safety_settings = {
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
 }
 
-# 8. Initialize Model and Chat Session using explicit models/ prefix
+# 8. Initialize Model and Chat Session (Standard string identifier)
 if "chat" not in st.session_state:
     model = genai.GenerativeModel(
-        model_name="models/gemini-1.5-flash",
+        model_name="gemini-1.5-flash",
         system_instruction=system_instruction,
         generation_config=generation_config,
         safety_settings=safety_settings
@@ -247,10 +247,9 @@ with st.sidebar:
                 mime="text/csv"
             )
 
-    if st.button("Reset & Generate New Persona/Fault"):
-        for key in ["chat", "fault", "personality", "customer_name", "phase", "evaluation_done"]:
-            if key in st.session_state:
-                del st.session_state[key]
+    if st.button("Reset & Clear Session Cache"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         st.rerun()
 
 # 10. Render Conversation Interface
@@ -279,6 +278,10 @@ if user_input := st.chat_input("Type your response to the customer or diagnostic
                     message_placeholder.markdown("Simulation concluded.")
                 st.rerun()
             except Exception as e:
+                # If a cached session error occurs, purge session state to force a fresh object creation
+                if "unexpected model name format" in str(e):
+                    del st.session_state["chat"]
+                    st.rerun()
                 message_placeholder.error(f"Error: {e}")
 
 # 12. Submit Final Diagnosis Button & Evaluation Rendering
