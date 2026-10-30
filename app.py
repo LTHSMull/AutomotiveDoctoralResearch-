@@ -172,9 +172,9 @@ with st.sidebar:
     # Location indicator badge
     st.subheader("Current Location")
     if st.session_state.get("phase", "desk") == "desk":
-        st.info("🛋️ **Location:** Service Desk (Phase 1)")
+        st.info("**Location:** Service Desk (Phase 1)")
     else:
-        st.success("🔧 **Location:** Service Bay (Phase 2)")
+        st.success("**Location:** Service Bay (Phase 2)")
     
     st.markdown("---")
     st.subheader("Active State Telemetry")
