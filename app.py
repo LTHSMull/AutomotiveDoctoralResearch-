@@ -72,22 +72,22 @@ PERSONALITY_TRAITS = [
 CSV_FILE_PATH = "simulation_results.csv"
 
 def log_session_to_csv(data_dict):
-    """Appends completed simulation telemetry and scores to a local CSV file."""
+    """Appends completed simulation telemetry, student inputs, and full transcripts to CSV using explicit quoting."""
     file_exists = os.path.isfile(CSV_FILE_PATH)
     headers = [
         "timestamp", "customer_name", "personality_trait", "vehicle", 
         "fault_name", "communication_score", "logic_score", 
-        "accuracy_score", "overall_score", "transcript"
+        "accuracy_score", "overall_score", "student_inputs_only", "full_transcript"
     ]
     
     with open(CSV_FILE_PATH, mode="a", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=headers)
+        writer = csv.DictWriter(file, fieldnames=headers, quoting=csv.QUOTE_ALL)
         if not file_exists:
             writer.writeheader()
         writer.writerow(data_dict)
 
 def create_model_with_fallback(model_name, system_instruction, generation_config, safety_settings):
-    """Tries the requested model, and safely falls back if unsupported by API backend."""
+    """Tries requested model and safely falls back if unsupported by backend."""
     candidate_models = [model_name, "gemini-1.5-flash", "gemini-2.0-flash"]
     for m in candidate_models:
         try:
@@ -107,14 +107,11 @@ def create_model_with_fallback(model_name, system_instruction, generation_config
         safety_settings=safety_settings
     ), "gemini-1.5-flash"
 
-def run_secondary_evaluation(chat_history, active_fault, customer_name, personality):
-    """Executes a secondary LLM call to generate a structured evaluation report."""
+def run_secondary_evaluation(transcript_log, active_fault, customer_name, personality):
+    """Executes secondary LLM call using explicit session transcript log."""
     formatted_transcript = ""
-    for msg in chat_history:
-        speaker = customer_name if msg.role == "model" else "Technician"
-        msg_text = "".join([p.text for p in msg.parts if hasattr(p, "text") and p.text]) if hasattr(msg, "parts") and msg.parts else ""
-        if msg_text:
-            formatted_transcript += f"{speaker}: {msg_text}\n\n"
+    for entry in transcript_log:
+        formatted_transcript += f"{entry['role']}: {entry['text']}\n\n"
 
     judge_prompt = f"""
     You are an expert automotive instructor and doctoral researcher evaluating a student technician's performance in a dual-phase diagnostic simulator.
@@ -179,6 +176,7 @@ if "fault" not in st.session_state:
     st.session_state.personality = random.choice(PERSONALITY_TRAITS)
     st.session_state.customer_name = random.choice(["Alex", "Jordan", "Morgan", "Taylor", "Chris"])
     st.session_state.phase = "desk"
+    st.session_state.transcript_log = []  # Dedicated explicit history array
 
 active_fault = st.session_state.fault
 
@@ -201,7 +199,7 @@ PHASE 1: THE SERVICE DESK (Customer Roleplay)
 - Raw Vehicle Symptoms Known to Customer: {active_fault['core_symptoms']}
 
 STRICT CONVERSATIONAL PACING RULES:
-1. DYNAMIC REFORMULATION: Do NOT quote the raw vehicle symptoms word-for-word. Synthesize them dynamically using the voice, vocabulary level, and emotional stress dictated by your behavioral profile ({st.session_state.personality}). Rephrase your story entirely on every playthrough.
+1. DYNAMIC REFORMULATION: Do NOT quote raw vehicle symptoms word-for-word. Synthesize them dynamically using the voice, vocabulary level, and emotional stress dictated by your behavioral profile ({st.session_state.personality}). Rephrase your story entirely on every playthrough.
 
 2. INFORMATION TIERS (Reveal details ONLY when earned):
    - TIER 1 (Initial Unprompted Complaint): State ONLY your immediate emotional distress and high-level situation.
@@ -268,6 +266,7 @@ with st.sidebar:
     st.write(f"**Personality Trait:** {st.session_state.personality}")
     st.write(f"**Target Vehicle:** {active_fault['vehicle']}")
     st.write(f"**Active Model:** `{st.session_state.get('active_model_name', 'gemini-3.5-flash-lite')}`")
+    st.write(f"**Total Turn Count:** {len(st.session_state.get('transcript_log', []))}")
     
     with st.expander("Reveal Ground Truth (Instructor Only)"):
         st.write(f"**Fault Name:** {active_fault['name']}")
@@ -297,8 +296,14 @@ for message in st.session_state.chat.history:
             if text_content:
                 st.markdown(text_content)
 
-# 11. Process Inputs
+# 11. Process Inputs & Explicitly Record Every Action
 if user_input := st.chat_input("Type your response to the customer or diagnostic action in the bay..."):
+    # Append student input to explicit transcript log
+    st.session_state.transcript_log.append({
+        "role": "Technician",
+        "text": user_input
+    })
+
     with st.chat_message("user"):
         st.markdown(user_input)
 
@@ -315,6 +320,13 @@ if user_input := st.chat_input("Type your response to the customer or diagnostic
 
                 if response_text:
                     message_placeholder.markdown(response_text)
+                    
+                    # Append AI response to explicit transcript log
+                    st.session_state.transcript_log.append({
+                        "role": "Simulator",
+                        "text": response_text
+                    })
+                    
                     if "[SERVICE BAY]" in response_text:
                         st.session_state.phase = "bay"
                 else:
@@ -333,8 +345,9 @@ with col_action1:
 with col_action2:
     if st.button("📊 Submit Final Diagnosis & Grade Session", type="primary"):
         with st.spinner("Analyzing transcript and computing rubric metrics..."):
+            # Execute scoring against the full recorded transcript array
             eval_results = run_secondary_evaluation(
-                st.session_state.chat.history,
+                st.session_state.transcript_log,
                 active_fault,
                 st.session_state.customer_name,
                 st.session_state.personality
@@ -343,13 +356,20 @@ with col_action2:
             st.session_state.evaluation = eval_results
             st.session_state.evaluation_done = True
             
-            transcript_lines = []
-            for m in st.session_state.chat.history:
-                text = "".join([p.text for p in m.parts if hasattr(p, "text") and p.text]) if hasattr(m, "parts") and m.parts else ""
-                if text:
-                    transcript_lines.append(f"{m.role}: {text}")
-            transcript_text = "\n".join(transcript_lines)
+            # Format student inputs only
+            student_inputs_only = "\n".join([
+                f"[{i+1}] {item['text']}" 
+                for i, item in enumerate(st.session_state.transcript_log) 
+                if item["role"] == "Technician"
+            ])
             
+            # Format full complete conversation dialogue
+            full_transcript = "\n\n".join([
+                f"[{item['role']}]: {item['text']}" 
+                for item in st.session_state.transcript_log
+            ])
+            
+            # Write to CSV
             log_session_to_csv({
                 "timestamp": datetime.now().isoformat(),
                 "customer_name": st.session_state.customer_name,
@@ -360,7 +380,8 @@ with col_action2:
                 "logic_score": eval_results["logic_score"],
                 "accuracy_score": eval_results["accuracy_score"],
                 "overall_score": eval_results["overall_score"],
-                "transcript": transcript_text
+                "student_inputs_only": student_inputs_only,
+                "full_transcript": full_transcript
             })
 
 if st.session_state.get("evaluation_done", False):
@@ -387,4 +408,4 @@ if st.session_state.get("evaluation_done", False):
         st.write("🎯 **Technical Accuracy**")
         st.write(eval_data['accuracy_feedback'])
         
-    st.success("✅ Session data and full conversation transcript successfully logged to research dataset (`simulation_results.csv`).")
+    st.success("✅ Session data, student input sequence, and full conversation transcript logged to research dataset (`simulation_results.csv`).")
