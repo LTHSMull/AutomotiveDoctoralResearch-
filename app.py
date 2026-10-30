@@ -158,7 +158,7 @@ safety_settings = {
 # 8. Initialize Model and Chat Session
 if "chat" not in st.session_state:
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-3.5-flash lite",
         system_instruction=system_instruction,
         generation_config=generation_config,
         safety_settings=safety_settings
@@ -179,7 +179,6 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("Active State Telemetry")
     st.write(f"**Customer Persona:** {st.session_state.customer_name}")
-    st.write(f"**Personality Trait:** {st.session_state.personality}")
     st.write(f"**Target Vehicle:** {active_fault['vehicle']}")
     
     with st.expander("Reveal Ground Truth (Instructor Only)"):
