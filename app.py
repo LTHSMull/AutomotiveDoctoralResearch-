@@ -4,9 +4,8 @@ import random
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 # 1. Page Setup
-st.set_page_config(page_title="Auto Diagnostics Lab", page_icon="🔧")
+st.set_page_config(page_title="Auto Diagnostics Lab", page_icon="🔧", layout="wide")
 st.title("🔧 Auto Diagnostics Lab: Dual-Phase Simulator")
-st.write("You are at the service desk. De-escalate the customer, gather intake information, and then take the vehicle to the bay for diagnostics.")
 
 # 2. Configure API Key
 if "GEMINI_API_KEY" in st.secrets:
@@ -15,181 +14,166 @@ else:
     st.error("Missing GEMINI_API_KEY in Streamlit Secrets.")
     st.stop()
 
-# 3. Define the Master Scenario Pool (7 Scenarios)
-SCENARIO_POOL = [
+# 3. Dynamic Archetype Pool (Core Mechanical Grounding)
+FAULT_TEMPLATES = [
     {
+        "fault_id": "starter_solenoid",
         "name": "Starter Motor Solenoid Failure",
-        "vehicle": "2018 Honda Civic LX (2.0L 4-Cylinder, Automatic)",
-        "phase1_complaint": "Frustrated. Spent $200 on a new battery yesterday, but the car won't start this morning. Hears a single sharp click when turning the key, but dashboard/lights work fine.",
+        "vehicle": "2018 Honda Civic LX (2.0L 4-Cylinder)",
+        "base_cause": "Faulty starter solenoid coil preventing starter engagement.",
         "phase2_data": """
-          - Multimeter at battery terminals (Engine Off): 12.6 Volts.
-          - Key turn attempt: Single sharp click from starter solenoid in engine bay; engine does not turn over.
-          - Jump-starting attempt: Fails to crank engine (solenoid unresponsive).
+          - Multimeter at battery terminals (Engine Off): 12.6V.
+          - Ignition attempt: Single sharp click from starter solenoid; engine does not turn over.
+          - Jump-start attempt: Fails to crank (solenoid unresponsive).
+          - Voltage drop test at starter main terminal during key turn: 12.5V present at main post, 12.5V at S-terminal, starter motor does not spin.
         """
     },
     {
-        "name": "Alternator Charging System Failure",
-        "vehicle": "2017 Ford Focus SE (2.0L 4-Cylinder, Automatic)",
-        "phase1_complaint": "Stressed. Was driving last night, dashboard lights dimmed, radio cut out, and the vehicle died at a stoplight. Spent money on a battery recently.",
+        "fault_id": "charging_system",
+        "name": "Alternator Diode / Charging Failure",
+        "vehicle": "2017 Ford Focus SE (2.0L 4-Cylinder)",
+        "base_cause": "Internal alternator failure causing no voltage output under load.",
         "phase2_data": """
-          - Multimeter at battery terminals (Engine Off): 11.2 Volts (Discharged).
-          - Jump-starting attempt: Engine starts successfully with external pack.
-          - Multimeter at battery terminals (Engine Running under jump): 11.5 Volts and dropping (Alternator not supplying 13.5V-14.5V).
-          - Removing jump pack while running: Engine immediately stalls.
+          - Multimeter at battery terminals (Engine Off): 11.2V (Discharged).
+          - Jump-start attempt: Engine starts successfully with external pack.
+          - Multimeter at battery terminals (Engine Running under jump): 11.5V and dropping.
+          - Removing jump pack: Engine immediately stalls.
+          - Belt inspection: Serpentine belt is intact and properly tensioned.
         """
     },
     {
-        "name": "HVAC Blend Door Actuator Failure (Clicking Dash)",
-        "vehicle": "2016 Dodge Charger SXT (3.6L V6, Automatic)",
-        "phase1_complaint": "Annoyed and distracted. Loud, repetitive clicking sound coming from behind the center dashboard whenever climate control is on. A/C or heat stuck blowing on the floor and won't switch to vents.",
-        "phase2_data": """
-          - Visual/Audible Inspection behind dashboard: Rapid clicking noise originating from climate control unit.
-          - OBD-II / HVAC Scan Tool: Code B1081 (HVAC Blend Door Actuator Circuit / Position Error).
-          - Multimeter at engine battery/charging system: 12.6 Volts (Engine compartment electrical systems operate normally).
-          - Physical inspection under dash: Plastic gear teeth stripped on the driver-side blend door actuator assembly.
-        """
-    },
-    {
-        "name": "Timing Chain Stretch & Cam/Crank Correlation",
-        "vehicle": "2015 Chevrolet Traverse LT (3.6L V6, Automatic)",
-        "phase1_complaint": "Worried about major engine damage. Engine makes a loud rattling noise for a few seconds on cold startup, check engine light is illuminated, and acceleration feels sluggish under load.",
-        "phase2_data": """
-          - OBD-II Scan Tool: Codes P0008 / P0017 (Camshaft/Crankshaft Position Correlation Error Bank 1).
-          - Engine visual/audible test (Engine running): Rattling noise present near front engine timing cover.
-          - Multimeter / Charging system test: 13.8 Volts (Charging system operational).
-          - Mechanical Scope / Compression: Timing chain stretch causing camshaft timing to lag behind crankshaft position.
-        """
-    },
-    {
-        "name": "AFM / DFM Lifter Collapse & Misfire",
-        "vehicle": "2016 Chevrolet Silverado 1500 LT (5.3L V8 with AFM, Automatic)",
-        "phase1_complaint": "Panicked. Truck is shaking violently while idling, check engine light is flashing continuously, and a loud, rhythmic ticking noise is coming from under the hood.",
-        "phase2_data": """
-          - OBD-II Scan Tool: Code P0300 / P0307 (Cylinder 7 Misfire Detected).
-          - Audible Inspection: Loud metallic ticking sound originating from the driver-side valve cover (Cylinder 7 area).
-          - Compression Test on Cylinder 7: 0 PSI (Dead cylinder).
-          - Mechanical Inspection: Active Fuel Management (AFM) collapsed intake lifter on Cylinder 7, keeping valve closed.
-        """
-    },
-    {
-        "name": "Transmission Fluid Leak & Slippage",
-        "vehicle": "2014 Nissan Altima 2.5 S (Continuously Variable Transmission)",
-        "phase1_complaint": "Upset. Vehicle 'jumps' and lurches violently when accelerating from stops, struggles on hills, and noticed a reddish-brown fluid puddle under the car on the driveway.",
-        "phase2_data": """
-          - Fluid Spot Inspection: Sweet-smelling reddish-brown fluid leaking from transmission pan area.
-          - Transmission Dipstick / Level Inspection: Fluid level far below minimum threshold; fluid dark and scorched.
-          - Road/Bay Drive Test: Transmission slips significantly under load due to insufficient hydraulic pressure.
-          - Underbody Inspection: Damaged transmission pan gasket leaking profusely under pressure.
-        """
-    },
-    {
+        "fault_id": "parasitic_draw",
         "name": "Parasitic Electrical Draw",
-        "vehicle": "2019 Jeep Wrangler Unlimited (3.6L V6 with Aftermarket Audio)",
-        "phase1_complaint": "Frustrated. Battery dies every single night. Installed a brand-new battery twice this month, but every morning the vehicle is completely dead.",
+        "vehicle": "2019 Jeep Wrangler Unlimited (3.6L V6)",
+        "base_cause": "Unswitched aftermarket accessory or sticking relay causing battery drain overnight.",
         "phase2_data": """
-          - Multimeter at battery (Engine Off, after sitting): 10.4 Volts (Depleted).
-          - Alternator Charging Test (Engine running): 14.2 Volts (Charging system operates properly).
-          - Parasitic Draw Test (Digital Multimeter in series with negative battery cable, vehicle asleep): Reads 650 mA draw (Normal threshold is under 50 mA).
-          - Fuse Pull Test: Parasitic draw drops to 15 mA when Fuse F24 (Aftermarket amplifier/accessory circuit) is pulled.
+          - Multimeter at battery (Engine Off, after sitting): 10.4V (Depleted).
+          - Alternator Charging Test (Engine running): 14.2V (Charging system working).
+          - Parasitic Draw Test (DMM in series with negative terminal, car asleep): 650 mA draw (Normal < 50 mA).
+          - Fuse Pull Test: Draw drops to 15 mA when Fuse F24 (Accessory/Amplifier) is removed.
         """
     }
 ]
 
-# 4. Handle State Reset or Persistence
-if "scenario" in st.session_state and not isinstance(st.session_state.scenario, dict):
-    del st.session_state["scenario"]
+# 4. Persona Traits Pool for Procedural Customer Generation
+PERSONALITY_TRAITS = [
+    "hyper-anxious about repair costs due to a tight monthly budget",
+    "skeptical of mechanic recommendations and feels previously burned by auto shops",
+    "rushed and impatient because they are late for work and have meetings scheduled",
+    "confused and overwhelmed by technical terms, defensive about their vehicle knowledge"
+]
 
-if "scenario" not in st.session_state:
-    st.session_state.scenario = random.choice(SCENARIO_POOL)
+# 5. Initialize Simulation State
+if "fault" not in st.session_state:
+    st.session_state.fault = random.choice(FAULT_TEMPLATES)
+    st.session_state.personality = random.choice(PERSONALITY_TRAITS)
+    st.session_state.customer_name = random.choice(["Alex", "Jordan", "Morgan", "Taylor", "Chris"])
+    st.session_state.phase = "desk"
 
-active_scenario = st.session_state.scenario
+active_fault = st.session_state.fault
 
-# 5. System Instructions injecting the assigned Scenario and strict Phase 2 rules
+# 6. Dynamically Constructed Master Instruction
 system_instruction = f"""
 Role & Objective:
-You are an educational simulator for an automotive technology program. You will play two roles sequentially:
-1. "Alex," a frustrated automotive service customer.
-2. The physical vehicle and workshop environment undergoing diagnostics in the service bay.
+You are an advanced educational simulator for a post-secondary automotive technology program. You play two distinct roles sequentially:
+1. "{st.session_state.customer_name}," an automotive service customer bringing in a vehicle.
+2. The physical workshop environment, vehicle components, and diagnostic tools in the service bay.
 
-ACTIVE VEHICLE SPECIFICATION: {active_scenario['vehicle']}
-ACTIVE SCENARIO NAME: {active_scenario['name']}
-(DO NOT reveal the active scenario name, exact failure mechanism, or diagnostic answers to the student under any circumstances until the conclusion).
+ACTIVE SCENARIO SPECIFICATION:
+- Vehicle: {active_fault['vehicle']}
+- Root Technical Cause: {active_fault['base_cause']}
+- Customer Behavioral Profile: {st.session_state.personality}
+(DO NOT explicitly reveal the exact root technical cause or scenario name to the student until the final evaluation).
 
-PHASE 1: THE SERVICE DESK (Play the role of Alex)
-- Tone: Agitated, stressed, and concerned about repair costs or reliability.
-- Vehicle Knowledge: State that you drive a {active_scenario['vehicle']}.
-- Customer Complaint / Symptoms: {active_scenario['phase1_complaint']}
-- Rules of Engagement:
-  - Do not give away all symptoms at once. Force the student to ask probing, professional questions.
-  - If the student is dismissive or talks down using unhelpful jargon, become uncooperative.
-  - If the student uses de-escalation techniques (empathy, active listening, clear explanations), calm down and provide clearer answers.
-- Transition: Once the student de-escalates you and states they are pulling the vehicle into the bay, acknowledge taking the keys and silently transition to Phase 2.
+PHASE 1: THE SERVICE DESK (Customer Roleplay)
+- Name: {st.session_state.customer_name}
+- Behavioral Style: Embody the personality trait: "{st.session_state.personality}".
+- Guidelines:
+  1. Express your frustration in your own unique words based on your personality profile.
+  2. Vary your phrasing across playthroughs. Do NOT deliver all information in a single paragraph.
+  3. Require the student to demonstrate active listening, validation, and de-escalation before giving up full symptom history.
+  4. React strongly if the student uses condescending jargon, dismisses your concerns, or rushes you.
+  5. Once the student de-escalates you and states they are bringing the vehicle into the bay, hand over the keys and transition to Phase 2.
+  6. If the student does not de-escalate in a reasonable manner, ask for a manager.
 
-PHASE 2: THE SERVICE BAY (Play the role of the Vehicle & Physical Environment)
-- Tone: Objective, clinical, and completely passive. You are no longer Alex; you are strictly a physical object.
-- Strict Rules of Engagement:
-  1. DO NOT describe the workshop environment, list available tools (e.g., do NOT mention multimeters, scan tools, hand tools, scope probes, or jumper cables), or suggest next steps.
-  2. DO NOT provide hints, suggestions, or interpret any diagnostic data for the student.
-  3. Respond ONLY to explicit student commands. When transitioning into Phase 2, output ONLY: 
-     "[SERVICE BAY] {active_scenario['vehicle']} is pulled into Bay 1. Engine is off. Awaiting technician command."
-  4. If the student specifies a vague action (e.g., "I check the engine" or "I test the electrical system"), do NOT assume a tool or test. Ask them to specify the exact tool, connection points, and procedure.
-  5. Provide raw numeric output or physical observations ONLY when the exact tool and testing procedure are specified by the student.
-
-- Diagnostic Outcomes (Based on student execution):
-{active_scenario['phase2_data']}
+PHASE 2: THE SERVICE BAY (Physical Environment Roleplay)
+- Persona: Passive, objective physical environment and tool interface.
+- Guidelines:
+  1. DO NOT suggest tools, list options, or prompt the student on what to test next.
+  2. Transition response must strictly be: "[SERVICE BAY] {active_fault['vehicle']} is pulled into Bay 1. Engine is off. Keys on the dash. Awaiting technician command on desired next steps."
+  3. Require specific tool selections, test locations, and procedures (e.g., "I connect a multimeter set to DC Volts across the battery terminals").
+  4. If a command is ambiguous, ask the technician to clarify the tool and testing procedure.
+  5. Use this empirical ground-truth dataset for test results:
+{active_fault['phase2_data']}
 
 CONCLUSION & EVALUATION:
-When the student provides their final diagnosis and estimated repair approach:
-1. Provide a detailed evaluation of their diagnostic path in your own words.
-2. State whether their final diagnosis accurately identifies the root cause for {active_scenario['name']}.
-3. Assess whether they gathered sufficient empirical evidence before drawing their conclusion.
+When the student presents their final diagnosis and repair recommendation:
+1. Evaluate their communication strategy during Phase 1 (de-escalation, empathy, clarity).
+2. Evaluate their diagnostic logic in Phase 2 (systematic testing vs. component swapping/guessing).
+3. Confirm whether the root cause was correctly identified and supported by empirical evidence.
 """
+
+# 7. Model Configuration with Temperature for Variation
+generation_config = genai.types.GenerationConfig(
+    temperature=0.85,  # Slightly higher temperature introduces dialogue and response variation
+    top_p=0.95,
+)
 
 safety_settings = {
     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
 }
 
-# 6. Initialize Model and Chat Session in Session State Once
+# 8. Initialize Model and Chat Session
 if "chat" not in st.session_state:
     model = genai.GenerativeModel(
         model_name="gemini-3.5-flash-lite",
         system_instruction=system_instruction,
+        generation_config=generation_config,
         safety_settings=safety_settings
     )
     st.session_state.chat = model.start_chat(history=[])
 
-# Add a Reset Button in the sidebar
+# 9. Sidebar Debug & Research Controls
 with st.sidebar:
-    st.header("Simulation Controls")
-    if st.button("Restart Simulation (New Random Scenario)"):
-        for key in ["chat", "scenario"]:
+    st.header("⚙️ Instructor / Research Panel")
+    st.subheader("Active State Telemetry")
+    st.write(f"**Customer Persona:** {st.session_state.customer_name}")
+    st.write(f"**Personality Trait:** {st.session_state.personality}")
+    st.write(f"**Target Vehicle:** {active_fault['vehicle']}")
+    
+    # Hide root cause behind an expander for testing
+    with st.expander("Reveal Ground Truth (Instructor Only)"):
+        st.write(f"**Fault Name:** {active_fault['name']}")
+        st.write(f"**Root Cause:** {active_fault['base_cause']}")
+
+    st.markdown("---")
+    if st.button("Reset & Generate New Persona/Fault"):
+        for key in ["chat", "fault", "personality", "customer_name", "phase"]:
             if key in st.session_state:
                 del st.session_state[key]
         st.rerun()
 
-# 7. Display Chat History
+# 10. Render Conversation Interface
 for message in st.session_state.chat.history:
     role = "assistant" if message.role == "model" else "user"
     with st.chat_message(role):
         st.markdown(message.parts[0].text)
 
-# 8. User Input & Response Generation
-if user_input := st.chat_input("Type your response to the customer or action in the bay..."):
+# 11. Process Inputs
+if user_input := st.chat_input("Type your response to the customer or diagnostic action in the bay..."):
     with st.chat_message("user"):
         st.markdown(user_input)
 
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        with st.spinner("Processing..."):
+        with st.spinner("Simulating environment..."):
             try:
                 response = st.session_state.chat.send_message(user_input)
-                
                 if response.candidates and response.candidates[0].content.parts:
                     message_placeholder.markdown(response.text)
                 else:
-                    message_placeholder.markdown("The simulation has concluded. Your diagnosis and evaluation have been recorded.")
-                
+                    message_placeholder.markdown("Simulation concluded. Diagnostics and communication logs recorded.")
                 st.rerun()
             except Exception as e:
                 message_placeholder.error(f"Error: {e}")
