@@ -22,7 +22,13 @@ FAULT_TEMPLATES = [
         "name": "Starter Motor Solenoid Failure",
         "vehicle": "2018 Honda Civic LX (2.0L 4-Cylinder)",
         "base_cause": "Faulty starter solenoid coil preventing starter engagement.",
-        "phase1_complaint": "Vehicle won't start after buying a new battery; hears a single sharp click when turning the key, but dashboard/lights work fine.",
+        # Raw factual constraints instead of a rigid sentence
+        "core_symptoms": [
+            "Bought a brand new battery yesterday",
+            "Vehicle fails to turn over/crank this morning",
+            "Single sharp metallic click heard when key is turned",
+            "Cabin lights, radio, and dashboard illuminate normally"
+        ],
         "phase2_data": """
           - Multimeter at battery terminals (Engine Off): 12.6V.
           - Ignition attempt: Single sharp click from starter solenoid; engine does not turn over.
@@ -35,26 +41,18 @@ FAULT_TEMPLATES = [
         "name": "Alternator Diode / Charging Failure",
         "vehicle": "2017 Ford Focus SE (2.0L 4-Cylinder)",
         "base_cause": "Internal alternator failure causing no voltage output under load.",
-        "phase1_complaint": "Vehicle died while driving at night; dashboard lights dimmed, radio cut out, and car stalled at a stoplight.",
+        "core_symptoms": [
+            "Car completely died while actively driving at night",
+            "Headlights and dashboard instruments dimmed sequentially right before stalling",
+            "Radio shut off on its own",
+            "Stalled out at a stoplight and would not restart"
+        ],
         "phase2_data": """
           - Multimeter at battery terminals (Engine Off): 11.2V (Discharged).
           - Jump-start attempt: Engine starts successfully with external pack.
           - Multimeter at battery terminals (Engine Running under jump): 11.5V and dropping.
           - Removing jump pack: Engine immediately stalls.
           - Belt inspection: Serpentine belt is intact and properly tensioned.
-        """
-    },
-    {
-        "fault_id": "parasitic_draw",
-        "name": "Parasitic Electrical Draw",
-        "vehicle": "2019 Jeep Wrangler Unlimited (3.6L V6)",
-        "base_cause": "Unswitched aftermarket accessory or sticking relay causing battery drain overnight.",
-        "phase1_complaint": "Battery dies every night; vehicle is completely dead every morning despite installing a new battery.",
-        "phase2_data": """
-          - Multimeter at battery (Engine Off, after sitting): 10.4V (Depleted).
-          - Alternator Charging Test (Engine running): 14.2V (Charging system working).
-          - Parasitic Draw Test (DMM in series with negative terminal, car asleep): 650 mA draw (Normal < 50 mA).
-          - Fuse Pull Test: Draw drops to 15 mA when Fuse F24 (Accessory/Amplifier) is removed.
         """
     }
 ]
@@ -91,19 +89,21 @@ ACTIVE SCENARIO SPECIFICATION:
 PHASE 1: THE SERVICE DESK (Customer Roleplay)
 - Name: {st.session_state.customer_name}
 - Behavioral Profile: {st.session_state.personality}
+- Raw Vehicle Symptoms Known to Customer: {active_fault['core_symptoms']}
 
 STRICT CONVERSATIONAL PACING RULES:
-1. DO NOT RUSH TO THE BAY: Stay at the service desk for AT LEAST 3 to 5 back-and-forth conversational exchanges. Do NOT offer keys or transition to Phase 2 prematurely.
+1. DYNAMIC REFORMULATION: Do NOT quote the raw vehicle symptoms word-for-word. Synthesize them dynamically using the voice, vocabulary level, and emotional stress dictated by your behavioral profile ({st.session_state.personality}). Rephrase your story entirely on every playthrough.
+
 2. INFORMATION TIERS (Reveal details ONLY when earned):
    
    - TIER 1 (Initial Unprompted Complaint): 
-     State ONLY your emotional state and the high-level surface frustration (e.g., "I spent money on a battery and my car still won't start!"). Do NOT explain the exact noises, dash lights, or driving conditions yet.
+     State ONLY your immediate emotional distress and high-level situation (e.g., "I can't believe this, I just spent money fixing this car and now it's completely useless on my driveway!"). Do NOT describe symptoms or sounds yet.
    
-   - TIER 2 (Unlocked by Empathy & General Questions): 
-     If the student validates your frustration or asks open-ended questions, reveal primary symptoms: {active_fault['phase1_complaint']}
+   - TIER 2 (Unlocked by Empathy & Open-Ended Questions): 
+     When the student listens attentively or asks what happened, describe 1 or 2 high-level symptoms from your known raw symptoms in your own informal words.
    
-   - TIER 3 (Unlocked ONLY by Specific, Inquisitive Follow-up Questions):
-     Only reveal deep context if the student asks targeted, inquisitive questions about recent driving conditions, specific sounds, or aftermarket accessories.
+   - TIER 3 (Unlocked ONLY by Specific, Inquisitive Follow-Up Questions):
+     Reveal deeper details (like specific click sounds, dash light behaviors, or driving conditions) ONLY when the student explicitly asks targeted questions about them.
 
 3. TRANSITION CRITERIA TO PHASE 2:
    You will ONLY hand over the keys and say "Please pull it into the bay" if BOTH conditions are met:
