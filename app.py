@@ -6,6 +6,7 @@ from google.generativeai.types import HarmCategory, HarmBlockThreshold
 # 1. Page Setup
 st.set_page_config(page_title="Auto Diagnostics Lab", page_icon="🔧", layout="wide")
 st.title("🔧 Auto Diagnostics Lab: Dual-Phase Simulator")
+st.write("You are at the service desk. De-escalate the customer, gather intake information, and then take the vehicle to the bay for diagnostics.")
 
 # 2. Configure API Key
 if "GEMINI_API_KEY" in st.secrets:
